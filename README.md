@@ -23,7 +23,7 @@ LB_PC: point clustering-based method. No pre-setup.
 
 ===== How to run ========================
 
->>>> Example 1:
+Example 1:
 Step 1) Go to Source folder.
 Step 2) Run
     test_onesetting.py 2
@@ -35,7 +35,7 @@ Step 3) Run
     0X0_All_speedups.txt: contains the speedups from each of the methods.
     0X0_All_skips.txt: contains the number of skips from each of the methods.
 
->>>> Example 2:
+Example 2:
 Step 1) Go to Source folder.
 Step 2) Run
     test_tryall.py 2
