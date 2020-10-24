@@ -24,29 +24,42 @@ LB_PC: point clustering-based method. No pre-setup.
 ===== How to run ========================
 
 Example 1:
+
 Step 1) Go to Source folder.
+
 Step 2) Run
     test_onesetting.py 2
-  It will invoke all the methods on the second dataset in 'Data/' folder,
+
+It will invoke all the methods on the second dataset in 'Data/' folder,
      produce the performance measurement results, and put them into the folder 'Results'.
+
 Step 3) Run
     peakResults.py
-  It will generate the following files in folder ../Results/tryonesetting/
+
+It will generate the following files in folder ../Results/tryonesetting/
     0X0_All_speedups.txt: contains the speedups from each of the methods.
     0X0_All_skips.txt: contains the number of skips from each of the methods.
 
 Example 2:
+
 Step 1) Go to Source folder.
+
 Step 2) Run
     test_tryall.py 2
-  It will invoke all the methods on the second dataset in 'Data/' folder and try every setting for a method,
+
+It will invoke all the methods on the second dataset in 'Data/' folder and try every setting for a method,
      produce the performance measurement results, and put them into the folder 'Results'.
+
 Step 3) Run
     peakResults.py
-  It will generate the following files in folder ../Results/tryallsettings/
+
+It will generate the following files in folder ../Results/tryallsettings/
+
     0X0_All_speedups.txt: contains the speedups from each of the methods.
+    
     0X0_All_skips.txt: contains the number of skips from each of the methods.
-  Which includes the best results of each method for each datasest.
+ 
+ Which includes the best results of each method for each datasest.
 
 ===== Notes =============================
 
