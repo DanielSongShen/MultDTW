@@ -1,0 +1,2 @@
+dist, predId, skips, coretime, p_cals, predYear
+[90.53775912010035, 19, 0, 2.418811798095703, 0, 2005]

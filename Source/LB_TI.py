@@ -117,6 +117,7 @@ def tiBounds_top_calP_list_comp_eb(X, Y, W, P, dxx, dist):
     #------------
     return lbrst
 
+
 def DTWDistanceWindowLB_Ordered_LBTI_ (queryID, TH, P, query, references, W):
     '''
     Compute the DTW distance between a query series and a set of reference series.
@@ -179,6 +180,84 @@ def DTWDistanceWindowLB_Ordered_LBTI_ (queryID, TH, P, query, references, W):
 #    LBs_g.append(LBs)
 
     return dist, predId, skips, coretime, p_cals
+
+
+def DTWDistanceWindowLB_Ordered_LBTI_KNN (TH, P, query, references, W, N):
+    '''
+    Compute the DTW distance between a query series and a set of reference series.
+    :param i: the query ID number
+    :param DTWdist: precomputed DTW distances (for fast experiments)
+    :param TH: the triggering threshold for the expensive filter to take off
+    :param query: the query series
+    :param references: a list of reference series
+    :param W: half window size
+    :return: the DTW distance and the coretime
+    '''
+    skips = 0
+    p_cals = 0
+    coretime = 0
+
+    start = time.time()
+    # get bounds of query
+    ql = len(query)
+    dim = len(query[0])
+    bounds = []
+    for idx in range(ql):
+        segment = query[(idx - W if idx - W >= 0 else 0):(idx + W + 1 if idx + W <= ql-1 else ql)]
+        l = [min(segment[:, idd]) for idd in range(dim)]
+        u = [max(segment[:, idd]) for idd in range(dim)]
+        bounds.append([l, u])
+    LBs = getLB_oneQ_qbox(query, references, bounds)
+    LBSortedIndex = np.argsort(LBs)
+#    LBSortedIndex = sorted(range(len(LBs)),key=lambda x: LBs[x])
+    predId = list(LBSortedIndex[:N])
+#    end=time.time()
+#    coretime += (end - start)
+
+    bestSofar = [(DTWwnd(query,references[LBSortedIndex[i]], W), predId[i]) for i in range(len(LBSortedIndex[:N]))]
+    bestSofar = sorted(bestSofar, key=lambda x: x[0])
+    predId = [_[1] for _ in bestSofar]
+    dxx = bestSofar[0][0][1]
+    bestSofar = [_[0][0] for _ in bestSofar]
+
+#    start = time.time()
+    for x in range(N, len(LBSortedIndex)):
+        thisrefid = LBSortedIndex[x]
+        dist = bestSofar[-1]
+        if LBs[thisrefid] >= dist:
+            skips = len(LBs) - x
+            break
+        elif LBs[thisrefid] >= dist - TH*dist:
+            p_lb = tiBounds_top_calP_list_comp_eb(query, references[thisrefid], P, W, dxx, dist)
+            p_cals += 1
+            if p_lb < dist:
+                dist2 = DTW_a(query, references[thisrefid], W, dist)
+                for i in range(len(bestSofar)):
+                    if bestSofar[i] > dist2:
+                        bestSofar.insert(i, dist2)
+                        bestSofar = bestSofar[:N]
+                        predId.insert(i, thisrefid)
+                        predId = predId[:N]
+                        break
+            else:
+                skips = len(LBs) - x
+                break
+        else:
+            dist2 = DTW_a(query, references[thisrefid], W, dist)
+            for i in range(len(bestSofar)):
+                if bestSofar[i] > dist2:
+                    bestSofar.insert(i, dist2)
+                    bestSofar = bestSofar[:N]
+                    predId.insert(i, thisrefid)
+                    predId = predId[:N]
+                    break
+
+    end = time.time()
+    coretime += (end - start)
+#    LBs_g.append(LBs)
+
+    return bestSofar, predId, skips, coretime, p_cals
+
 
 def dataCollection (pathUCRResult, datasetsNameFile, datasetsSizeFile, datapath, maxdim = 5, nqueries = 3, nreferences = 20, windows = [20], THs=[0.1], period_g=5):
     datasets = []
@@ -245,6 +324,61 @@ def dataCollection (pathUCRResult, datasetsNameFile, datasetsSizeFile, datapath,
                 # allResults.append(results)
 #    np.save(pathUCRResult+"" + '/_AllDataSets/' + "/d"+ str(maxdim) + "/" + str(nqueries)+"X"+str(nreferences)
 #            + "_X1"+"w" + intlist2str(windows)+ "TH"+intlist2str(THs) + "_times.npy", allTimes)
+    return 0
+
+
+def hurricaneDataCollection (pathUCRResult, datasetsNameFile, datasetsSizeFile, datapath, days=365, N=1, maxdim = 5, windows = [20], THs=[0.1], period_g=5):
+    datasets = []
+    # with open("Results/UCR/allDataSetsNames.txt",'r') as f:
+    with open(datasetsNameFile, 'r') as f:
+        for line in f:
+            datasets.append(line.strip())
+    f.close()
+    datasize = []
+    # with open("Results/UCR/size.txt",'r') as f:
+    with open(datasetsSizeFile, 'r') as f:
+        for line in f:
+            datasize.append(int(line.strip()))
+    f.close()
+
+#    datasets=["ArticularyWordRecognition","AtrialFibrillation"]
+
+    for idxset, dataset in enumerate(datasets):
+        print(dataset+" Start!")
+        stuff = loadUCRData_norm_xs(datapath, dataset, 0)
+        size = len(stuff)
+        length = stuff[0].shape[0]
+        dim = min(stuff[0].shape[1], maxdim)
+        print("Size: "+str(size))
+        print("Dim: "+str(dim))
+        print("Length: "+str(length))
+
+        queries = [q.values[:days, :dim] for q in stuff[30:]]
+        for qi, query in enumerate(queries):
+            query = [query]
+            reference = [r.values[:days, :dim] for r in stuff[qi:qi+30]]
+            for w in windows:
+                windowSize = w if w <= length / 2 else int(length / 2)
+                toppath = pathUCRResult + str(days)+"days"+"/"
+                if (not os.path.exists(toppath)):
+                    os.makedirs(toppath)
+                toppath+="N="+str(N)+"/"
+                if (not os.path.exists(toppath)):
+                    os.makedirs(toppath)
+    #            dists = [[DTW(s1, s2, windowSize) for s2 in reference] for s1 in query]
+                for TH in THs:
+                    results = [DTWDistanceWindowLB_Ordered_LBTI_KNN (TH,
+                                period_g, query[ids1], reference, windowSize, N) for ids1 in range(len(query))]
+                    # if findErrors(dataset, maxdim, w, nqueries, nreferences, results, pathUCRResult):
+                    #     print('Wrong Results!! Dataset: ' + dataset)
+                    #     exit()
+                    results = list(results[0])
+                    results.append([int(1951 + qi + predId) for predId in results[1]])
+                    queryyear = qi+1981
+                    with open(toppath+ "q="+str(queryyear)+"_LBTI_TH"+str(TH)+"_results.txt", 'w') as f:
+                        f.write("dists, predIds, skips, coretime, p_cals, predYears"+'\n')
+                        for r in results:
+                            f.write(str(r)+'\n')
     return 0
 
 
