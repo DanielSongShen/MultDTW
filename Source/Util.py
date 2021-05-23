@@ -3,6 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 import glob
+import statistics as sts
+import matplotlib.pyplot as plt
+from matplotlib import colors
 
 import time
 
@@ -210,7 +213,7 @@ def normalize(aserie):
     # data structure: DataFrame [ dim1 [...], dim2 [...], ...] ]
     nmSerie = []
     for d in range(aserie.shape[1]):
-        oneDim = list(aserie[d])
+        oneDim = list(aserie.iloc[:,d])
         mi = min(oneDim)
         ma = max(oneDim)
         dif = (ma - mi) if (ma-mi)>0 else 0.0000000001
@@ -229,7 +232,9 @@ def loadUCRData_norm_xs (path, name, n):
     if n==0:
         pklfiles = glob.glob(path + datasetName + "/*.pkl")
         pklfiles = sorted(pklfiles, key=lambda x: float(re.findall("(\d+)", x)[-1]))
+        temp = pd.read_pickle(pklfiles[0])
         allData = [normalize(pd.read_pickle(g).fillna(0)) for g in pklfiles]
+
     else:
         cnt = 0
         allData = []
@@ -243,6 +248,48 @@ def loadUCRData_norm_xs (path, name, n):
                 allData.append(normalize(pd.read_pickle(g).fillna(0)))
     return allData
 
+def initloadHurrianeResults(path):
+    resultsarray = []
+    for i in range(1981, 2021):
+        with open(path+"q="+str(i)+"_LBTI_TH0.1_results.txt") as f:
+            lines = f.readlines()
+            labels = lines[0]
+            labels = labels.strip().split(",")
+            labels = [l.strip() for l in labels]
+            temp = lines[1][1:-2]
+            temp = temp.strip().split(",")
+            temp = [float(t.strip()) for t in temp]
+            resultsarray.append(temp)
+    resultsDF = pd.DataFrame(resultsarray, columns=labels, index=[i for i in range(1981,2021)])
+    resultsDF.to_csv(path+"allResults.csv")
+    return resultsDF
+
+def initloadHurrianeKNNResults(path, N):
+    path = path+"N="+str(N)+"/"
+    allresultsarray = []
+    yearresultsarray = []
+    distresultsarray = []
+    for i in range(1981, 2021):
+        with open(path+"q="+str(i)+"_LBTI_TH0.1_results.txt") as f:
+            lines = f.readlines()
+            labels = lines[0]
+            labels = labels.strip().split(",")
+            labels = [l.strip() for l in labels]
+            allresultsarray.append(lines[1:])
+            yearresultsarray.append([int(year.strip()) for year in lines[-1][1:-2].split(',')])
+            distresultsarray.append([float(dist.strip()) for dist in lines[1][1:-2].split(',')])
+    allresultsDF = pd.DataFrame(allresultsarray, columns=labels, index=[i for i in range(1981,2021)])
+    allresultsDF.to_csv(path+"allResults.csv")
+    yearResultsDF = pd.DataFrame(yearresultsarray, columns=[i for i in range(1,N+1)], index=[i for i in range(1981,2021)])
+    yearResultsDF.to_csv(path+"yearResults.csv")
+    distResultsDF = pd.DataFrame(distresultsarray, columns=[i for i in range(1,N+1)], index=[i for i in range(1981,2021)])
+    distResultsDF.to_csv(path+"distResults.csv")
+    return 0
+
+def HurricaneEvaluation():
+    getHurricaneGroundTruth()
+    return 0
+
 def intlist2str(A):
     return '_'.join([str(a) for a in A])
 
@@ -250,6 +297,30 @@ def load_M0LBs(pathUCRResult, dataset, maxdim, w, nqueries, nreferences):
     lb_2003 = np.load(pathUCRResult+dataset+"/d"+ str(maxdim) +"/w"+ str(w) + '/' +
                       str(nqueries) + "X" + str(nreferences) +"_LBMV_ws_lbs.npy")
     return lb_2003
+
+def getHurricaneGroundTruth(path="../Results/HurricaneCount/", cat="NA"):
+    allCounts = pd.read_csv(path+"Counts.csv")
+    catCounts = allCounts.loc[:,"N_TC_"+cat:"N_MH_"+cat]
+    return catCounts
+
+def reverseDTW(cat="NA"):
+    counts = getHurricaneGroundTruth(cat=cat)
+
+    fig, axs = plt.subplots(1, len(counts.iloc[0]), tight_layout=True)
+    for i in range(len(counts.iloc[0])):
+        N, bins, patches = axs[i].hist(counts.iloc[:, i])
+        for j in range(len(patches)):
+            if j%2==0:
+                patches[j].set_facecolor('r')
+            else:
+                patches[j].set_facecolor('b')
+        axs[i].set_title(counts.columns[i])
+        axs[i].set(xlabel="Storm Count", ylabel="Number of Years")
+    plt.show()
+
+
+    return 0
+
 
 def getGroundTruth (dataset, maxdim, w, nqueries, nreferences, pathUCRResult='../Results/UCR/'):
     '''
